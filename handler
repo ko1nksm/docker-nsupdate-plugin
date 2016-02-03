@@ -71,10 +71,10 @@ normalization() {
 }
 
 fields=(
-  {{.Name}}
-  {{.Config.Hostname}}
-  {{.Config.Domainname}}
-  {{.NetworkSettings.IPAddress}}
+  "{{.Name}}"
+  "{{.Config.Hostname}}"
+  "{{.Config.Domainname}}"
+  "{{.NetworkSettings.IPAddress}}"
 )
 format=$(IFS="|"; echo "${fields[*]}")
 
@@ -84,7 +84,7 @@ handler() {
 
   case $event in
     start | exists | die)
-      IFS="|" read -ra info < <(docker inspect -f "$format" $1)
+      IFS="|" read -ra info < <(docker inspect -f "$format" "$1")
       name="$(normalization "${info[0]:1}").$default_domain"
       host="${info[1]}"
       domain="${info[2]}"
@@ -95,11 +95,11 @@ handler() {
       case $event in
         start | exists)
           echo "update CONTAINER:${1:0:12} $name $fqdn $ipaddr"
-          update $name $fqdn $ipaddr
+          update "$name" "$fqdn" "$ipaddr"
           ;;
         die)
           echo "delete CONTAINER:${1:0:12} $name $fqdn"
-          delete $name $fqdn
+          delete "$name" "$fqdn"
           ;;
       esac
   esac
