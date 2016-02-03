@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-default_domain="local"
+default_domain="internal"
 dns_server=""
 
 usage() {
