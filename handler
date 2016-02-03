@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+default_domain="local"
+dns_server=""
+
+usage() {
+cat <<DATA
+Usage: docker-nsupdate-plugin DNS_SERVER [OPTIONS..]
+
+DNS_SERVER:
+  dynamic dns server
+
+OPTION:
+  -d, --domain DOMAIN   Domain appended to the end of hostname if not specified
+      --help            Show help
+
+DATA
+exit 0
+}
+
+(( $# == 0 )) && usage
+
+while (( $# > 0 )); do
+  case $1 in
+    -d | --domain)
+      if [[ $2 ]]; then
+        default_domain=$2
+        shift
+      else
+        echo "DOMAIN is not specified"
+        exit 1
+      fi
+      ;;
+    -*)
+      echo "No such option"
+      exit 1
+      ;;
+    *)
+      dns_server=$1
+  esac
+  shift
+done
+
+if [[ ! $dns_server ]]; then
+  echo "not specified dns server"
+  exit 1
+fi
+
+echo "dns server: $dns_server, default domain: $default_domain"
+
+update() {
+cat <<DATA | nsupdate
+server $dns_server
+update add $1 1 A $3
+update add $2 1 A $3
+send
+DATA
+}
+
+delete() {
+cat <<DATA | nsupdate
+server $dns_server
+update delete $1 A
+update delete $2 A
+send
+DATA
+}
+
+normalization() {
+  printf "%s" "${1//_/-}"
+}
+
+fields=(
+  {{.Name}}
+  {{.Config.Hostname}}
+  {{.Config.Domainname}}
+  {{.NetworkSettings.IPAddress}}
+)
+format=$(IFS="|"; echo "${fields[*]}")
+
+handler() {
+  local event=$1 info host domain ipaddr fqdn
+  shift
+
+  case $event in
+    start | exists | die)
+      IFS="|" read -ra info < <(docker inspect -f "$format" $1)
+      name="$(normalization "${info[0]:1}").$default_domain"
+      host="${info[1]}"
+      domain="${info[2]}"
+      ipaddr="${info[3]}"
+
+      [[ $domain ]] && fqdn="$host.$domain" || fqdn="$host.$default_domain"
+
+      case $event in
+        start | exists)
+          echo "update CONTAINER:${1:0:12} $name $fqdn $ipaddr"
+          update $name $fqdn $ipaddr
+          ;;
+        die)
+          echo "delete CONTAINER:${1:0:12} $name $fqdn"
+          delete $name $fqdn
+          ;;
+      esac
+  esac
+}
