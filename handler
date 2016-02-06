@@ -79,12 +79,14 @@ fields=(
 format=$(IFS="|"; echo "${fields[*]}")
 
 handler() {
-  local event=$1 info host domain ipaddr fqdn
+  local filter=$1 event=$2 container=$3 info host domain ipaddr fqdn
   shift
+
+  [[ $filter = "container" ]] || return 0
 
   case $event in
     start | exists | die)
-      IFS="|" read -ra info < <(docker inspect -f "$format" "$1")
+      IFS="|" read -ra info < <(docker inspect -f "$format" "$container")
       name="$(normalization "${info[0]:1}").$default_domain"
       host="${info[1]}"
       domain="${info[2]}"
